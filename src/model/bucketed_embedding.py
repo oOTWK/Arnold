@@ -8,4 +8,5 @@ class BucketedEmbedding(torch.nn.Embedding):
         super(BucketedEmbedding, self).__init__(real_num_embeddings, *args, **kwargs)
 
     def forward(self, indices):
-        return super(BucketedEmbedding, self).forward(indices.div(self.bucket_size).type(torch.LongTensor))
+        d = indices.div(self.bucket_size).type(torch.LongTensor)
+        return super(BucketedEmbedding, self).forward(d.cuda() if indices.is_cuda else d)

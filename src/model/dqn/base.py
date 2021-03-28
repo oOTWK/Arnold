@@ -67,8 +67,13 @@ class DQNModuleBase(nn.Module):
 
         # game variables
         if self.n_variables:
-            embeddings = [self.game_variable_embeddings[i](x_variables[i])
-                          for i in range(self.n_variables)]
+            if conv_output.shape[0] == 1:
+                embeddings = [self.game_variable_embeddings[i](x_variables[i])
+                            for i in range(self.n_variables)]
+            else:
+                embeddings = [self.game_variable_embeddings[i](x_variables[i]).squeeze()
+                            for i in range(self.n_variables)]
+
 
         # game features
         if self.n_features:
@@ -130,10 +135,10 @@ class DQN(object):
         return dict(dqn_loss=[], gf_loss=[])
 
     def log_loss(self, loss_history):
-        logger.info('DQN loss: %.5f' % np.mean(loss_history['dqn_loss']))
+        logger.info('DQN loss: %.5f' % torch.mean(torch.stack( loss_history['dqn_loss'])).item() )
         if self.n_features > 0:
             logger.info('Game features loss: %.5f' %
-                        np.mean(loss_history['gf_loss']))
+                        torch.mean(torch.stack( loss_history['gf_loss'])).item() )
 
     def prepare_f_eval_args(self, last_states):
         """
@@ -214,7 +219,7 @@ class DQN(object):
         # batch size / replay memory size
         parser.add_argument("--batch_size", type=int, default=32,
                             help="Batch size")
-        parser.add_argument("--replay_memory_size", type=int, default=1000000,
+        parser.add_argument("--replay_memory_size", type=int, default=100000,
                             help="Replay memory size")
 
         # epsilon decay
