@@ -78,7 +78,7 @@ class DQNFeedforward(DQN):
         )
 
         # compute scores
-        mask = torch.ByteTensor(output_sc1.size()).fill_(0)
+        mask = torch.BoolTensor(output_sc1.size()).fill_(0)
         for i in range(batch_size):
             mask[i, int(actions[i, -1])] = 1
         scores1 = output_sc1.masked_select(self.get_var(mask))
