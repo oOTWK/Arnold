@@ -65,7 +65,7 @@ def main(parser, args, parameter_server=None):
 
     # Training / Evaluation parameters
     params.episode_time = None  # episode maximum duration (in seconds)
-    params.eval_freq = 20000    # time (in iterations) between 2 evaluations
+    params.eval_freq = 10000    # time (in iterations) between 2 evaluations
     params.eval_time = 900      # evaluation time (in seconds)
 
     # log experiment parameters
