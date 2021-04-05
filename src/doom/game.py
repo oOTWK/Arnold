@@ -72,6 +72,16 @@ game_variables = [
     # ('velocity_z', GameVariable.VELOCITY_Z),
 ]
 
+map_size = {
+    'defend_the_center': [(1600, 1600)],
+    'health_gathering' : [(1856, 1856)],
+    'deathmatch_shotgun' : [(1824, 1856), (2656, 2272), (2032, 2557), (3664, 3528), (1663, 1663), (2064, 2272), (1632, 1800), (2304, 2160), (2880, 2304), (3512, 2888), (1744, 1344), (4288, 2817), (1632, 1120)],
+    'deathmatch_rockets' : [(1824, 1856), (2656, 2272)],
+    'full_deathmatch' : [(1824, 1856), (2656, 2272), (2032, 2557), (3664, 3528), (1663, 1663), (2064, 2272), (1632, 1800), (2304, 2160), (2880, 2304), (3512, 2888), (1744, 1344), (4288, 2817), (1632, 1120), (1296, 1184), (2560, 2000), (3344, 3392), (2432, 2432)],
+}
+
+MAP_PARTITION = 20
+
 # advance a few steps to avoid bugs due to initial weapon changes
 SKIP_INITIAL_ACTIONS = 3
 
@@ -209,6 +219,10 @@ class Game(object):
         self.count_non_forward_actions = 0
         self.count_non_turn_actions = 0
 
+        # map coverage
+        self.map_covered = set()
+        self.scenario = scenario
+
     def update_game_variables(self):
         """
         Check and update game variables.
@@ -299,6 +313,12 @@ class Game(object):
             diff_y = self.properties['position_y'] - self.prev_properties['position_y']
             distance = math.sqrt(diff_x ** 2 + diff_y ** 2)
             self.reward_builder.distance(distance)
+
+        # coverage
+        size = map_size.get(self.scenario)[self.map_id - 1]
+        x_grid = self.properties['position_x'] // (size[0] / MAP_PARTITION)
+        y_grid = self.properties['position_y'] // (size[1] / MAP_PARTITION)
+        self.map_covered.add((x_grid, y_grid))
 
         # kill
         d = self.properties['score'] - self.prev_properties['score']
@@ -534,6 +554,10 @@ class Game(object):
             self.game.send_game_command("removebots")
             for _ in range(self.n_bots):
                 self.game.send_game_command("addbot")
+
+    # map coverage in percentage
+    def coverage(self):
+        return len(self.map_covered)/ (MAP_PARTITION**2) * 100
 
     def is_player_dead(self):
         """

@@ -98,6 +98,7 @@ class Trainer(object):
             if self.n_iter % (log_frequency * update_frequency) == 0:
                 logger.info('=== Iteration %i' % self.n_iter)
                 self.network.log_loss(current_loss)
+                logger.info('Map coverage: %.5f' % self.game.coverage() )
                 current_loss = self.network.new_loss_history()
 
             train_loss = self.training_step(current_loss)
