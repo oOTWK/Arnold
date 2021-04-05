@@ -225,7 +225,7 @@ class DQN(object):
         # epsilon decay
         parser.add_argument("--start_decay", type=int, default=0,
                             help="Learning step when the epsilon decay starts")
-        parser.add_argument("--stop_decay", type=int, default=1000000,
+        parser.add_argument("--stop_decay", type=int, default=100000,
                             help="Learning step when the epsilon decay stops")
         parser.add_argument("--final_decay", type=float, default=0.1,
                             help="Epsilon value after decay")

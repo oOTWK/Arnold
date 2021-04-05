@@ -63,7 +63,9 @@ class DQNRecurrent(DQN):
         h_0 = torch.FloatTensor(params.n_rec_layers, params.batch_size,
                                 params.hidden_dim).zero_()
         self.init_state_t = self.get_var(h_0)
-        self.init_state_e = Variable(self.init_state_t[:, :1, :].data.clone(), volatile=True)
+        # self.init_state_e = Variable(self.init_state_t[:, :1, :].data.clone(), volatile=True)
+        with torch.no_grad():
+            self.init_state_e = self.init_state_t[:, :1, :].data.clone()
         if params.recurrence == 'lstm':
             self.init_state_t = (self.init_state_t, self.init_state_t)
             self.init_state_e = (self.init_state_e, self.init_state_e)
