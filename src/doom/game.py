@@ -1,6 +1,7 @@
 import os
 import time
 import math
+import csv
 from logging import getLogger
 from collections import namedtuple
 
@@ -558,6 +559,16 @@ class Game(object):
     # map coverage in percentage
     def coverage(self):
         return len(self.map_covered)/ (MAP_PARTITION**2) * 100
+    
+    def currentTime(self):
+        return time.time()
+
+    def outputCsv(self, filename, data_to_write):
+        with open('%s.csv' % filename, 'w+') as csv_file:
+            writer = csv.writer(csv_file, delimiter=',')
+            for line in data_to_write:
+                writer.writerow(line)
+        csv_file.close()
 
     def is_player_dead(self):
         """
