@@ -223,6 +223,7 @@ class Game(object):
         # map coverage
         self.map_covered = set()
         self.scenario = scenario
+        self.reward_discount = 1
 
     def update_game_variables(self):
         """
@@ -299,6 +300,8 @@ class Game(object):
         """
         stats = self.statistics[self.map_id]
 
+        self.reward_discount = self.coverage()
+
         # reset reward
         self.reward_builder.reset()
 
@@ -313,7 +316,7 @@ class Game(object):
             diff_x = self.properties['position_x'] - self.prev_properties['position_x']
             diff_y = self.properties['position_y'] - self.prev_properties['position_y']
             distance = math.sqrt(diff_x ** 2 + diff_y ** 2)
-            self.reward_builder.distance(distance)
+            self.reward_builder.distance(distance * self.reward_discount)
 
         # coverage
         size = map_size.get(self.scenario)[self.map_id - 1]
@@ -324,7 +327,7 @@ class Game(object):
         # kill
         d = self.properties['score'] - self.prev_properties['score']
         if d > 0:
-            self.reward_builder.kill(d)
+            self.reward_builder.kill(d * self.reward_discount)
             stats['kills'] += d
             for _ in range(int(d)):
                 self.log('Kill')
@@ -345,7 +348,7 @@ class Game(object):
         d = self.properties['health'] - self.prev_properties['health']
         if d != 0:
             if d > 0:
-                self.reward_builder.medikit(d)
+                self.reward_builder.medikit(d * self.reward_discount)
                 stats['medikits'] += 1
             else:
                 self.reward_builder.injured(d)
