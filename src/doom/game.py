@@ -1,6 +1,7 @@
 import os
 import time
 import math
+import csv
 from logging import getLogger
 from collections import namedtuple
 
@@ -71,6 +72,16 @@ game_variables = [
     # ('velocity_y', GameVariable.VELOCITY_Y),
     # ('velocity_z', GameVariable.VELOCITY_Z),
 ]
+
+map_size = {
+    'defend_the_center': [(1600, 1600)],
+    'health_gathering' : [(1856, 1856)],
+    'deathmatch_shotgun' : [(1824, 1856), (2656, 2272), (2032, 2557), (3664, 3528), (1663, 1663), (2064, 2272), (1632, 1800), (2304, 2160), (2880, 2304), (3512, 2888), (1744, 1344), (4288, 2817), (1632, 1120)],
+    'deathmatch_rockets' : [(1824, 1856), (2656, 2272)],
+    'full_deathmatch' : [(1824, 1856), (2656, 2272), (2032, 2557), (3664, 3528), (1663, 1663), (2064, 2272), (1632, 1800), (2304, 2160), (2880, 2304), (3512, 2888), (1744, 1344), (4288, 2817), (1632, 1120), (1296, 1184), (2560, 2000), (3344, 3392), (2432, 2432)],
+}
+
+MAP_PARTITION = 20
 
 # advance a few steps to avoid bugs due to initial weapon changes
 SKIP_INITIAL_ACTIONS = 3
@@ -209,6 +220,11 @@ class Game(object):
         self.count_non_forward_actions = 0
         self.count_non_turn_actions = 0
 
+        # map coverage
+        self.map_covered = set()
+        self.scenario = scenario
+        self.reward_discount = 1
+
     def update_game_variables(self):
         """
         Check and update game variables.
@@ -284,6 +300,8 @@ class Game(object):
         """
         stats = self.statistics[self.map_id]
 
+        self.reward_discount = self.coverage()
+
         # reset reward
         self.reward_builder.reset()
 
@@ -298,12 +316,18 @@ class Game(object):
             diff_x = self.properties['position_x'] - self.prev_properties['position_x']
             diff_y = self.properties['position_y'] - self.prev_properties['position_y']
             distance = math.sqrt(diff_x ** 2 + diff_y ** 2)
-            self.reward_builder.distance(distance)
+            self.reward_builder.distance(distance * self.reward_discount)
+
+        # coverage
+        size = map_size.get(self.scenario)[self.map_id - 1]
+        x_grid = self.properties['position_x'] // (size[0] / MAP_PARTITION)
+        y_grid = self.properties['position_y'] // (size[1] / MAP_PARTITION)
+        self.map_covered.add((x_grid, y_grid))
 
         # kill
         d = self.properties['score'] - self.prev_properties['score']
         if d > 0:
-            self.reward_builder.kill(d)
+            self.reward_builder.kill(d * self.reward_discount)
             stats['kills'] += d
             for _ in range(int(d)):
                 self.log('Kill')
@@ -324,7 +348,7 @@ class Game(object):
         d = self.properties['health'] - self.prev_properties['health']
         if d != 0:
             if d > 0:
-                self.reward_builder.medikit(d)
+                self.reward_builder.medikit(d * self.reward_discount)
                 stats['medikits'] += 1
             else:
                 self.reward_builder.injured(d)
@@ -534,6 +558,20 @@ class Game(object):
             self.game.send_game_command("removebots")
             for _ in range(self.n_bots):
                 self.game.send_game_command("addbot")
+
+    # map coverage in percentage
+    def coverage(self):
+        return len(self.map_covered)/ (MAP_PARTITION**2) * 100
+    
+    def currentTime(self):
+        return time.time()
+
+    def outputCsv(self, filename, data_to_write):
+        with open('%s.csv' % filename, 'w+') as csv_file:
+            writer = csv.writer(csv_file, delimiter=',')
+            for line in data_to_write:
+                writer.writerow(line)
+        csv_file.close()
 
     def is_player_dead(self):
         """

@@ -55,6 +55,8 @@ class Trainer(object):
 
         self.network.module.train()
 
+        map_coverage_history = [['time', 'map_coverage']]
+
         while True:
             self.n_iter += 1
 
@@ -85,6 +87,7 @@ class Trainer(object):
 
             # evaluation
             if (self.n_iter - last_eval_iter) % self.params.eval_freq == 0:
+                self.game.outputCsv('coverage_training', map_coverage_history)
                 self.evaluate_model(start_iter)
                 last_eval_iter = self.n_iter
 
@@ -98,6 +101,8 @@ class Trainer(object):
             if self.n_iter % (log_frequency * update_frequency) == 0:
                 logger.info('=== Iteration %i' % self.n_iter)
                 self.network.log_loss(current_loss)
+                logger.info('Map coverage: %.5f' % self.game.coverage() )
+                map_coverage_history.append([self.game.currentTime(), self.game.coverage()])
                 current_loss = self.network.new_loss_history()
 
             train_loss = self.training_step(current_loss)
@@ -112,7 +117,7 @@ class Trainer(object):
 
             # update
             self.sync_update_parameters()
-
+            
         self.game.close()
 
     def game_iter(self, last_states, action):
