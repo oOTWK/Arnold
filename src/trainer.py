@@ -7,6 +7,11 @@ from .utils import get_optimizer
 from .replay_memory import ReplayMemory
 
 
+from torch.utils.tensorboard import SummaryWriter
+### tensorboard --logdir results
+import time
+start_time = time.perf_counter()
+
 logger = getLogger()
 
 
@@ -23,6 +28,7 @@ class Trainer(object):
         self.state_dict = self.network.module.state_dict()
         self.n_iter = 0
         self.best_score = -1000000
+        self.writer = SummaryWriter("results/"+params.plot_name)
 
     def start_game(self):
         map_id = np.random.choice(self.params.map_ids_train)
@@ -55,7 +61,7 @@ class Trainer(object):
 
         self.network.module.train()
 
-        map_coverage_history = [['time', 'map_coverage']]
+        # map_coverage_history = [['time', 'map_coverage']]
 
         while True:
             self.n_iter += 1
@@ -87,7 +93,7 @@ class Trainer(object):
 
             # evaluation
             if (self.n_iter - last_eval_iter) % self.params.eval_freq == 0:
-                self.game.outputCsv('coverage_training', map_coverage_history)
+                # self.game.outputCsv('coverage_training', map_coverage_history)
                 self.evaluate_model(start_iter)
                 last_eval_iter = self.n_iter
 
@@ -102,8 +108,12 @@ class Trainer(object):
                 logger.info('=== Iteration %i' % self.n_iter)
                 self.network.log_loss(current_loss)
                 logger.info('Map coverage: %.5f' % self.game.coverage() )
-                map_coverage_history.append([self.game.currentTime(), self.game.coverage()])
+                # map_coverage_history.append([self.game.currentTime(), self.game.coverage()])
                 current_loss = self.network.new_loss_history()
+
+                self.writer.add_scalar('map_coverage', self.game.coverage(), 
+                    (time.perf_counter()-start_time)/60)
+
 
             train_loss = self.training_step(current_loss)
             if train_loss is None:

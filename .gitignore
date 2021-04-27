@@ -3,3 +3,4 @@ __pycache__/
 *.py[cod]
 _vizdoom.ini
 dumped/*
+results/*

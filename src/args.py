@@ -94,6 +94,8 @@ def parse_game_args(args):
                         help="GPU ID")
     parser.add_argument("--log_frequency", type=int, default=100,
                         help="Log frequency (in seconds)")
+    parser.add_argument("--plot_name", type=str, default="expr",
+                        help="Tensorboard plot name")
 
     # Parse known arguments
     params, _ = parser.parse_known_args(args)
