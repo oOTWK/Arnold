@@ -16,6 +16,21 @@ default_reward_values = {
     'USE_AMMO': -0.2,
 }
 
+# default_reward_values = {
+#     'BASE_REWARD': 0.,
+#     'DISTANCE': 0.,
+#     'KILL': 0.,
+#     'DEATH': -5.,
+#     'SUICIDE': -5.,
+#     'MEDIKIT': 1.,
+#     'ARMOR': 1.,
+#     'INJURED': -1.,
+#     'WEAPON': 1.,
+#     'AMMO': 1.,
+#     'USE_AMMO': 0.,
+# }
+
+
 # logger
 logger = getLogger()
 

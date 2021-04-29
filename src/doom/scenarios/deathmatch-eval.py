@@ -141,7 +141,7 @@ def evaluate_deathmatch(game, network, params, n_train_iter=None):
     Evaluate the model.
     """
     logger.info('Evaluating the model...')
-    game.statistics = {}
+    # game.statistics = {}
 
     n_features = params.n_features
     if n_features > 0:

@@ -9,8 +9,7 @@ from .replay_memory import ReplayMemory
 
 from torch.utils.tensorboard import SummaryWriter
 ### tensorboard --logdir results
-import time
-start_time = time.perf_counter()
+
 
 logger = getLogger()
 
@@ -57,11 +56,9 @@ class Trainer(object):
         last_states = []
         start_iter = self.n_iter
         last_eval_iter = self.n_iter
-        last_dump_iter = self.n_iter
+        # last_dump_iter = self.n_iter
 
         self.network.module.train()
-
-        # map_coverage_history = [['time', 'map_coverage']]
 
         while True:
             self.n_iter += 1
@@ -93,26 +90,35 @@ class Trainer(object):
 
             # evaluation
             if (self.n_iter - last_eval_iter) % self.params.eval_freq == 0:
-                # self.game.outputCsv('coverage_training', map_coverage_history)
-                self.evaluate_model(start_iter)
+                # self.evaluate_model(start_iter)
                 last_eval_iter = self.n_iter
 
+                kills = self.game.statistics[self.game.map_id]['kills']
+                deaths = self.game.statistics[self.game.map_id]['deaths']
+                self.writer.add_scalar('kills', kills, self.n_iter)
+                self.writer.add_scalar('deaths', deaths, self.n_iter)
+                self.writer.add_scalar('kdr', (kills / deaths) if deaths>0 else kills, self.n_iter)
+                self.game.statistics[self.game.map_id]['kills'] = 0
+                self.game.statistics[self.game.map_id]['deaths'] = 0
+
+
             # periodically dump the model
-            if (dump_frequency > 0 and
-                    (self.n_iter - last_dump_iter) % dump_frequency == 0):
-                self.dump_model(start_iter)
-                last_dump_iter = self.n_iter
+            # if (dump_frequency > 0 and
+            #         (self.n_iter - last_dump_iter) % dump_frequency == 0):
+            #     self.dump_model(start_iter)
+            #     last_dump_iter = self.n_iter
 
             # log current average loss
             if self.n_iter % (log_frequency * update_frequency) == 0:
+                self.writer.add_scalar('loss', loss_log, self.n_iter)
+                self.writer.add_scalar('map_coverage', self.game.coverage(), self.n_iter)
+
                 logger.info('=== Iteration %i' % self.n_iter)
                 self.network.log_loss(current_loss)
                 logger.info('Map coverage: %.5f' % self.game.coverage() )
-                # map_coverage_history.append([self.game.currentTime(), self.game.coverage()])
                 current_loss = self.network.new_loss_history()
 
-                self.writer.add_scalar('map_coverage', self.game.coverage(), 
-                    (time.perf_counter()-start_time)/60)
+
 
 
             train_loss = self.training_step(current_loss)
@@ -121,7 +127,9 @@ class Trainer(object):
 
             # backward
             self.optimizer.zero_grad()
-            sum(train_loss).backward()
+            total_loss = sum(train_loss)
+            loss_log = total_loss.item()
+            total_loss.backward()
             for p in self.network.module.parameters():
                 p.grad.data.clamp_(-5, 5)
 
