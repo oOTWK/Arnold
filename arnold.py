@@ -5,6 +5,14 @@ from src.utils import get_dump_path
 from src.logger import get_logger
 from src.args import parse_game_args
 
+import torch
+import numpy as np
+import random
+
+seed=0
+torch.random.manual_seed(seed)
+np.random.seed(seed)
+random.seed(seed)
 
 parser = argparse.ArgumentParser(description='Arnold runner')
 parser.add_argument("--main_dump_path", type=str, default="./dumped",

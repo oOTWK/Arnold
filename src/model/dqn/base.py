@@ -7,6 +7,7 @@ from logging import getLogger
 from ...utils import bool_flag
 from ..utils import value_loss, build_CNN_network
 from ..utils import build_game_variables_network, build_game_features_network
+from ...icm import ICMModel
 
 
 logger = getLogger()
@@ -117,11 +118,15 @@ class DQN(object):
         self.module = self.DQNModuleClass(params)
         self.loss_fn_sc = value_loss(params.clip_delta)
         self.loss_fn_gf = nn.BCELoss()
+        self.loss_fc_inverse = nn.CrossEntropyLoss()
+        self.loss_fn_forward = nn.MSELoss()
 
         # cuda
         self.cuda = params.gpu_id >= 0
+        self.icm = ICMModel(0, 53, self.cuda)
         if self.cuda:
             self.module.cuda()
+            self.icm.cuda()
 
     def get_var(self, x):
         """Move a tensor to a CPU / GPU variable."""

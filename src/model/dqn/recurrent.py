@@ -3,6 +3,7 @@ from torch.autograd import Variable
 from .base import DQNModuleBase, DQN
 from ..utils import get_recurrent_module
 from ...utils import bool_flag
+from ...icm import ICMModel
 
 
 class DQNModuleRecurrent(DQNModuleBase):
@@ -108,6 +109,29 @@ class DQNRecurrent(DQN):
             self.prepare_f_train_args(screens, variables, features,
                                       actions, rewards, isfinal)
 
+        # ------------- icm -----------------------------
+        # adapted from https://github.com/jcwleo/curiosity-driven-exploration-pytorch/blob/master/agents.py
+        icm_state = screens[:,:-1,:,:,:]
+        icm_next_state = screens[:,1:,:,:,:]
+
+        shp = icm_state.shape
+        shp = [shp[0]*shp[1]] + list(shp[2:])
+        icm_state = icm_state.reshape(shp)
+        icm_next_state = icm_next_state.reshape(shp)
+
+        icm_action = torch.LongTensor(actions).cuda()
+        icm_action = icm_action.reshape(shp[0])
+        action_onehot = torch.FloatTensor(len(icm_action), 53).cuda()
+        action_onehot.zero_()
+        action_onehot.scatter_(1, icm_action.view(len(icm_action), -1), 1)
+        real_next_state_feature, pred_next_state_feature, pred_action = self.icm(
+            [icm_state, icm_next_state, action_onehot])
+
+        inverse_loss = self.loss_fc_inverse(pred_action, icm_action)
+        forward_loss = self.loss_fn_forward(pred_next_state_feature, real_next_state_feature.detach())
+        # ----------------------------------
+
+
         batch_size = self.params.batch_size
         seq_len = self.hist_size + self.params.n_rec_updates
 
@@ -141,7 +165,7 @@ class DQNRecurrent(DQN):
 
         self.register_loss(loss_history, loss_sc, loss_gf)
 
-        return loss_sc, loss_gf
+        return loss_sc, loss_gf, inverse_loss, forward_loss
 
     @staticmethod
     def register_args(parser):

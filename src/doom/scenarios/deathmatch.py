@@ -139,7 +139,7 @@ def evaluate_deathmatch(game, network, params, n_train_iter=None):
     Evaluate the model.
     """
     logger.info('Evaluating the model...')
-    game.statistics = {}
+    # game.statistics = {}
 
     n_features = params.n_features
     if n_features > 0:
@@ -149,7 +149,7 @@ def evaluate_deathmatch(game, network, params, n_train_iter=None):
     for map_id in params.map_ids_test:
 
         logger.info("Evaluating on map %i ..." % map_id)
-        game.start(map_id=map_id, log_events=True,
+        game.start(map_id=map_id, log_events=False,
                    manual_control=(params.manual_control and not params.human_player))
         game.randomize_textures(False)
         game.init_bots_health(100)

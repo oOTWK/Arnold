@@ -1,4 +1,5 @@
 import torch
+import torch.nn.functional as F
 import os
 import numpy as np
 from logging import getLogger
@@ -9,8 +10,6 @@ from .replay_memory import ReplayMemory
 
 from torch.utils.tensorboard import SummaryWriter
 ### tensorboard --logdir results
-import time
-start_time = time.perf_counter()
 
 logger = getLogger()
 
@@ -19,7 +18,7 @@ class Trainer(object):
 
     def __init__(self, params, game, network, eval_fn, parameter_server=None):
         optim_fn, optim_params = get_optimizer(params.optimizer)
-        self.optimizer = optim_fn(network.module.parameters(), **optim_params)
+        self.optimizer = optim_fn(list(network.module.parameters())+list(network.icm.parameters()), **optim_params) ## add icm param        
         self.parameter_server = parameter_server
         self.params = params
         self.game = game
@@ -57,11 +56,13 @@ class Trainer(object):
         last_states = []
         start_iter = self.n_iter
         last_eval_iter = self.n_iter
-        last_dump_iter = self.n_iter
+        # last_dump_iter = self.n_iter
 
         self.network.module.train()
 
-        # map_coverage_history = [['time', 'map_coverage']]
+        action = None
+        prev_reward = None
+        prev_is_final = None
 
         while True:
             self.n_iter += 1
@@ -71,6 +72,31 @@ class Trainer(object):
                 self.network.reset()  # reset internal state (RNNs only)
 
             self.game.observe_state(self.params, last_states)
+
+            if action is not None:
+                # adapted from https://github.com/jcwleo/curiosity-driven-exploration-pytorch/blob/master/agents.py
+                icm_state = torch.FloatTensor(np.float32(last_states[-2].screen).copy()).cuda()
+                icm_state = torch.unsqueeze(icm_state, 0)
+                icm_next_state = torch.FloatTensor(np.float32(last_states[-1].screen).copy()).cuda()
+                icm_next_state = torch.unsqueeze(icm_next_state, 0)
+
+                icm_action = torch.tensor(action).cuda()
+                icm_action = torch.unsqueeze(icm_action, 0)
+                action_onehot = torch.FloatTensor(1, 53).cuda()
+                action_onehot.zero_()
+                action_onehot.scatter_(1, icm_action.view(len(icm_action), -1), 1)
+
+                real_next_state_feature, pred_next_state_feature, pred_action = self.network.icm(
+                    [icm_state, icm_next_state, action_onehot])
+
+                intrinsic_reward = F.mse_loss(real_next_state_feature, pred_next_state_feature, reduction='none').mean()
+
+                prev_reward += 0.1 * intrinsic_reward.item()
+
+                # save last screens / features / action
+                self.game_iter(last_states, action, prev_reward, prev_is_final)
+
+
 
             # select the next action. `action` will correspond to an action ID
             # if we use non-continuous actions, otherwise it will correspond
@@ -88,31 +114,40 @@ class Trainer(object):
             # perform the action, and skip some frames
             self.game.make_action(action, self.params.frame_skip)
 
-            # save last screens / features / action
-            self.game_iter(last_states, action)
+            prev_reward=self.game.reward
+            prev_is_final=self.game.is_final()
 
             # evaluation
             if (self.n_iter - last_eval_iter) % self.params.eval_freq == 0:
-                # self.game.outputCsv('coverage_training', map_coverage_history)
-                self.evaluate_model(start_iter)
+                # self.evaluate_model(start_iter)
                 last_eval_iter = self.n_iter
 
+                kills = self.game.statistics[self.game.map_id]['kills']
+                deaths = self.game.statistics[self.game.map_id]['deaths']
+                self.writer.add_scalar('kills', kills, self.n_iter)
+                self.writer.add_scalar('deaths', deaths, self.n_iter)
+                self.writer.add_scalar('kdr', (kills / deaths) if deaths>0 else kills, self.n_iter)
+                self.game.statistics[self.game.map_id]['kills'] = 0
+                self.game.statistics[self.game.map_id]['deaths'] = 0
+
+
             # periodically dump the model
-            if (dump_frequency > 0 and
-                    (self.n_iter - last_dump_iter) % dump_frequency == 0):
-                self.dump_model(start_iter)
-                last_dump_iter = self.n_iter
+            # if (dump_frequency > 0 and
+            #         (self.n_iter - last_dump_iter) % dump_frequency == 0):
+            #     self.dump_model(start_iter)
+            #     last_dump_iter = self.n_iter
 
             # log current average loss
             if self.n_iter % (log_frequency * update_frequency) == 0:
+                self.writer.add_scalar('loss', loss_log, self.n_iter)
+                self.writer.add_scalar('map_coverage', self.game.coverage(), self.n_iter)
+
+
                 logger.info('=== Iteration %i' % self.n_iter)
                 self.network.log_loss(current_loss)
                 logger.info('Map coverage: %.5f' % self.game.coverage() )
-                # map_coverage_history.append([self.game.currentTime(), self.game.coverage()])
                 current_loss = self.network.new_loss_history()
 
-                self.writer.add_scalar('map_coverage', self.game.coverage(), 
-                    (time.perf_counter()-start_time)/60)
 
 
             train_loss = self.training_step(current_loss)
@@ -121,7 +156,9 @@ class Trainer(object):
 
             # backward
             self.optimizer.zero_grad()
-            sum(train_loss).backward()
+            total_loss = sum(train_loss)
+            loss_log = total_loss.item()
+            total_loss.backward()
             for p in self.network.module.parameters():
                 p.grad.data.clamp_(-5, 5)
 
@@ -213,15 +250,15 @@ class ReplayMemoryTrainer(Trainer):
             params.n_variables, params.n_features
         )
 
-    def game_iter(self, last_states, action):
+    def game_iter(self, last_states, action, prev_reward, prev_is_final):
         # store the transition in the replay table
         self.replay_memory.add(
-            screen=last_states[-1].screen,
-            variables=last_states[-1].variables,
-            features=last_states[-1].features,
+            screen=last_states[-2].screen,
+            variables=last_states[-2].variables,
+            features=last_states[-2].features,
             action=action,
-            reward=self.game.reward,
-            is_final=self.game.is_final()
+            reward=prev_reward,
+            is_final=prev_is_final
         )
 
     def training_step(self, current_loss):
